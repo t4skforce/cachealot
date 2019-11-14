@@ -11,4 +11,3 @@ RUN apk add --no-cache python3 python3-dev py3-lxml py3-pip \
 	&& rm -rf ./src
 
 ENTRYPOINT ["cachealot"]
-CMD ["--threads","1"]

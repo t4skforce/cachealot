@@ -10,5 +10,15 @@ RUN apk add --no-cache python3 python3-dev py3-lxml py3-pip \
 	&& python setup.py install \
 	&& rm -rf ./src
 
+ENV CACHEALOT_INTERVAL=5
+ENV CACHEALOT_THREADS=10
+ENV CACHEALOT_ENTRYPOINT=https://pypy.org
+ENV CACHEALOT_QUERY=a
+ENV CACHEALOT_SAMEDOMAIN=True
+ENV CACHEALOT_MAX_LEVELS=-1
+ENV CACHEALOT_STATIC=False
+ENV CACHEALOT_CONNECTION_TIMEOUT=120.0
+ENV CACHEALOT_READ_TIMEOUT=120.0
+
 ENTRYPOINT ["cachealot"]
-CMD [ "--threads", "1" ]
+CMD []

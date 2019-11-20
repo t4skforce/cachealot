@@ -24,12 +24,13 @@ def sizeof_fmt(num, suffix='B'):
     return "%.1f%s%s" % (num, 'Yi', suffix)
 
 class Cachealot:
-	def __init__(self, interval, threads, entrypoint, query, attr, samedomain, levels, connection_timeout, read_timeout):
+	def __init__(self, interval, threads, entrypoint, query, samedomain, levels, static, connection_timeout, read_timeout, user_agent):
 		self.interval = interval
 		self.threads = threads
 		self.entrypoint = entrypoint
 		self.query = query
-		self.attr = attr
+		if static == True: 
+			self.query = '{},img,link[rel="stylesheet"],script'.format(query)
 		self.samedomain = samedomain
 		self.levels = levels
 		self.timeout = (connection_timeout,read_timeout)
@@ -40,16 +41,18 @@ class Cachealot:
 		else:
 			self.base_path = '/'
 		self.base_depth = len(self.base_path.split('/'))
+		self.user_agent = user_agent
 
 	def request(self, url, timeout):
 		try:
 			start = time.time()
 			try:
-				r = requests.get(url, timeout=timeout, verify=False)
+				r = requests.get(url, timeout=timeout, verify=False, headers={'User-Agent': self.user_agent})
 				end = time.time()
 				if r.status_code == 200:
 					logger.info('HTTP[{}] ({}/{:.2f}s) {}'.format(r.status_code,sizeof_fmt(len(r.text)),(end-start),url))
-					return r.content
+					if "text/html" in r.headers["content-type"]:
+						return r.content
 				else:
 					logger.error('HTTP[{}] ({:.2f}s) {}'.format(r.status_code,(end-start),url))
 			except Timeout:
@@ -58,12 +61,12 @@ class Cachealot:
 			logger.exception('request error')
 		return None
 
-	def extract_urls(self, content):
-		try:
-			if not content is None:
-				q = pq(content)
-				for link in q(self.query).items():
-					target = urljoin(self.entrypoint, link.attr[self.attr])
+	def get_full_url(self, url):
+		if not url is None:
+			url = url.strip()
+			if len(url) > 0:
+				target = urljoin(self.entrypoint, url).split("#", 1)[0]
+				try:
 					o = urlparse(target)
 					target_domain = o.netloc.split(':')[0]
 					target_path = '/'
@@ -72,6 +75,24 @@ class Cachealot:
 					if self.samedomain == False or (self.samedomain and target_domain == self.base_domain):
 						if self.levels == -1 or (target_path.startswith(self.base_path) and len(target_path[len(self.base_path):].split('/')) <= self.levels):
 							yield target
+				except:
+					pass
+
+	def get_url_from_elem(self, elem):
+		if elem.is_('a'): return elem.attr('href')
+		if elem.is_('img'): return elem.attr('src') or elem.attr('data-src')
+		if elem.is_('link'): return elem.attr('href')
+		if elem.is_('script'): return elem.attr('src')
+		if elem.is_('iframe'): return elem.attr('src')
+		if elem.is_('source'): return elem.attr('src')
+
+	def extract_urls(self, content):
+		try:
+			if not content is None:
+				q = pq(content)
+				for elem in q(self.query).items():
+					for url in self.get_full_url(self.get_url_from_elem(elem)):
+						yield url
 		except:
 			logger.exception('extract_urls error')
 
@@ -83,16 +104,20 @@ class Cachealot:
 				futures = set()
 				with ThreadPoolExecutor(max_workers=self.threads) as pool:
 					futures.add(pool.submit(self.request, self.entrypoint, self.timeout))
-					for future in as_completed(futures):
-						for link in self.extract_urls(future.result()):
-							if not link in links:
-								logger.info('new: {}'.format(link))
-								links.add(link)
-								futures.add(pool.submit(self.request, link, self.timeout))
+					while len(futures) > 0:
+						for future in as_completed(futures):
+							for link in self.extract_urls(future.result()):
+								if not link in links:
+									logger.info('new: {}'.format(link))
+									links.add(link)
+									futures.add(pool.submit(self.request, link, self.timeout))
+							futures.remove(future)
 				end = time.time()
 				logger.info('finished requesting {} pages in {}'.format(len(links)+1,str(datetime.timedelta(seconds=end - start))))
 				logger.info('sleeping for {}'.format(str(datetime.timedelta(seconds=self.interval*60))))
 				time.sleep(self.interval*60)
+		except KeyboardInterrupt:
+			pass
 		except:
 			logger.exception('URL={}'.format(self.entrypoint))
 			

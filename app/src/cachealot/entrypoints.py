@@ -17,7 +17,7 @@ from .cachealot import Cachealot
 @click.option('--static/--no-static', prompt='static', default=lambda: os.environ.get('CACHEALOT_STATIC', True), help='Download static resources')
 @click.option('--connection-timeout', prompt='connection-timeout', type=click.FLOAT, default=lambda: os.environ.get('CACHEALOT_CONNECTION_TIMEOUT', 120.0), help='HTTP connection timeout in seconds')
 @click.option('--read-timeout', prompt='read-timeout', type=click.FLOAT, default=lambda: os.environ.get('CACHEALOT_READ_TIMEOUT', 120.0), help='HTTP read timeout in seconds')
-@click.option('--user-agent', prompt='user-agent', type=click.STRING, default=lambda: os.environ.get('CACHEALOT_USER_AGENT', 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'), help='HTTP read timeout in seconds')
+@click.option('--user-agent', prompt='user-agent', type=click.STRING, default=lambda: os.environ.get('CACHEALOT_USER_AGENT','Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'), help='User-Agent header to use for requests')
 def entrypoint(interval, threads, entrypoint, query, samedomain, max_levels, static, connection_timeout, read_timeout, user_agent):
 	try:
 		Cachealot(interval, threads, entrypoint, query, samedomain, max_levels, static, connection_timeout, read_timeout, user_agent).run()

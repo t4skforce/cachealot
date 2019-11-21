@@ -14,7 +14,8 @@ if os.path.exists('README.md'):
 requires = [
     'requests',
     'pyquery',
-    'click8'
+    'click8',
+    'tldextract'
 ]
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))

@@ -3,8 +3,6 @@
 import os
 import sys
 import click
-import requests
-import pyquery
 from .cachealot import Cachealot
 
 @click.command()
@@ -18,12 +16,12 @@ from .cachealot import Cachealot
 @click.option('--connection-timeout', prompt='connection-timeout', type=click.FLOAT, default=lambda: os.environ.get('CACHEALOT_CONNECTION_TIMEOUT', 120.0), help='HTTP connection timeout in seconds')
 @click.option('--read-timeout', prompt='read-timeout', type=click.FLOAT, default=lambda: os.environ.get('CACHEALOT_READ_TIMEOUT', 120.0), help='HTTP read timeout in seconds')
 @click.option('--user-agent', prompt='user-agent', type=click.STRING, default=lambda: os.environ.get('CACHEALOT_USER_AGENT','Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'), help='User-Agent header to use for requests')
-def entrypoint(interval, threads, entrypoint, query, samedomain, max_levels, static, connection_timeout, read_timeout, user_agent):
+@click.option('--elastic-search', type=click.STRING, default=lambda: os.environ.get('CACHEALOT_ELASTIC_SEARCH'), help='Address of Elastic-Search Server')
+def entrypoint(interval, threads, entrypoint, query, samedomain, max_levels, static, connection_timeout, read_timeout, user_agent, elastic_search):
 	try:
-		Cachealot(interval, threads, entrypoint, query, samedomain, max_levels, static, connection_timeout, read_timeout, user_agent).run()
+		Cachealot(interval, threads, entrypoint, query, samedomain, max_levels, static, connection_timeout, read_timeout, user_agent, elastic_search).run()
 	except KeyboardInterrupt:
 		sys.exit(0)
-
 
 def main():
 	entrypoint(auto_envvar_prefix='CACHEALOT')

@@ -82,6 +82,7 @@ class Cachealot:
 		r = requests.post(urljoin(self.elastic_search,'/cachealot-{}/entries/?pretty'.format(time.strftime('%Y%m%d', time.localtime(start)))),json={
 			'@timestamp':time.strftime('%Y-%m-%dT%H:%M:%S%z', time.localtime(start)),
 			'@finished':time.strftime('%Y-%m-%dT%H:%M:%S%z', time.localtime(end)),
+			'@hostname': str(socket.gethostname()),
 			'status':int(r.status_code),
 			'headers': json.loads(str(r.headers).replace("'",'"')),
 			'cookies': r.cookies.get_dict(),

@@ -1,0 +1,35 @@
+version: '2'
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.4.2
+    mem_limit: 1gb
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms1024m -Xmx1024m"
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.4.2
+    mem_limit: 1gb
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+  grafana:
+    image: grafana/grafana
+    mem_limit: 1gb
+    environment:
+     - GF_SERVER_ROOT_URL=http://127.0.0.1:3000
+     - GF_SECURITY_ADMIN_PASSWORD=admin
+    ports:
+      - 3000:3000
+  cachealot:
+    image: t4skforce/cachealot:latest
+    mem_limit: 1gb
+    environment:
+     - CACHEALOT_ELASTIC_SEARCH=http://elasticsearch:9200
+     - CACHEALOT_KIBANA=http://kibana:5601
+     - CACHEALOT_INTERVAL=60
+     - CACHEALOT_THREADS=1
+     - CACHEALOT_ENTRYPOINT=https://pypy.org
+     - CACHEALOT_QUERY=a

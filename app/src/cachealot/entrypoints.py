@@ -16,10 +16,11 @@ from .cachealot import Cachealot
 @click.option('--connection-timeout', prompt='connection-timeout', type=click.FLOAT, default=lambda: os.environ.get('CACHEALOT_CONNECTION_TIMEOUT', 120.0), help='HTTP connection timeout in seconds')
 @click.option('--read-timeout', prompt='read-timeout', type=click.FLOAT, default=lambda: os.environ.get('CACHEALOT_READ_TIMEOUT', 120.0), help='HTTP read timeout in seconds')
 @click.option('--user-agent', prompt='user-agent', type=click.STRING, default=lambda: os.environ.get('CACHEALOT_USER_AGENT','Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'), help='User-Agent header to use for requests')
-@click.option('--elastic-search', type=click.STRING, default=lambda: os.environ.get('CACHEALOT_ELASTIC_SEARCH'), help='Address of Elastic-Search Server')
-def entrypoint(interval, threads, entrypoint, query, samedomain, max_levels, static, connection_timeout, read_timeout, user_agent, elastic_search):
+@click.option('--elastic-search', type=click.STRING, default=lambda: os.environ.get('CACHEALOT_ELASTIC_SEARCH',None), help='Address of Elastic-Search Server')
+@click.option('--kibana', type=click.STRING, default=lambda: os.environ.get('CACHEALOT_KIBANA',None), help='Address of Kibana Server')
+def entrypoint(interval, threads, entrypoint, query, samedomain, max_levels, static, connection_timeout, read_timeout, user_agent, elastic_search, kibana):
 	try:
-		Cachealot(interval, threads, entrypoint, query, samedomain, max_levels, static, connection_timeout, read_timeout, user_agent, elastic_search).run()
+		Cachealot(interval, threads, entrypoint, query, samedomain, max_levels, static, connection_timeout, read_timeout, user_agent, elastic_search, kibana).run()
 	except KeyboardInterrupt:
 		sys.exit(0)
 

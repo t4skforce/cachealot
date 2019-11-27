@@ -8,7 +8,7 @@ RUN apk add --no-cache python3 python3-dev py3-lxml py3-pip \
 	&& pip install --upgrade pip \
 	&& pip install -r requirements.txt \
 	&& python setup.py install \
-	&& rm -rf ./src
+	&& rm -rf /app
 
 ENV CACHEALOT_INTERVAL=5
 ENV CACHEALOT_THREADS=10

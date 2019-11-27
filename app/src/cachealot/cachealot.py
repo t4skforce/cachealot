@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import os
 from concurrent.futures import ThreadPoolExecutor, wait, as_completed
 import requests
 import warnings
@@ -28,7 +29,7 @@ def sizeof_fmt(num, suffix='B'):
     return "%.1f%s%s" % (num, 'Yi', suffix)
 
 class Cachealot:
-	def __init__(self, interval, threads, entrypoint, query, samedomain, levels, static, connection_timeout, read_timeout, user_agent, elastic_search):
+	def __init__(self, interval, threads, entrypoint, query, samedomain, levels, static, connection_timeout, read_timeout, user_agent, elastic_search, kibana):
 		logger.info('Settings: {}'.format({
 			"interval":interval,
 			"threads":threads,
@@ -40,7 +41,8 @@ class Cachealot:
 			"connection-timeout":connection_timeout,
 			"read-timeout":read_timeout,
 			"user-agent":user_agent,
-			"elastic-search":elastic_search
+			"elastic-search":elastic_search,
+			"kibana": kibana
 		}))
 		self.interval = interval
 		self.threads = threads
@@ -70,24 +72,52 @@ class Cachealot:
 				logger.info('waiting for elk to come up')
 				time.sleep(5)
 			self.set_up_elk()
+		self.kibana = kibana
+		if not self.kibana is None:
+			while True:
+				try:
+					r = requests.get(urljoin(self.kibana, '/api/security/v1/me'))
+					if r.status_code == 200 and not "not ready" in r.text:
+						break
+				except: 
+					pass
+				logger.info('waiting for kibana to come up')
+				time.sleep(5)
+			self.set_up_kibana()
 
 	def set_up_elk(self):
 		if requests.get(urljoin(self.elastic_search,'/_ilm/policy/cachealot_cleanup_policy')).json().get('cachealot_cleanup_policy',None) is None:
 			requests.put(urljoin(self.elastic_search,'/_ilm/policy/cachealot_cleanup_policy?pretty'), json={"policy":{"phases":{"hot":{"actions":{}},"delete":{"min_age":"30d","actions":{"delete":{}}}}}},verify=False)
 			requests.put(urljoin(self.elastic_search,'/_template/cachealot_logging_policy_template?pretty'), json={"index_patterns": ["cachealot-*"],"settings":{"index.lifecycle.name":"cachealot_cleanup_policy"}},verify=False)
 
-	def log_elk(self,url,start,end,r):
+	def set_up_kibana(self):
+		search = requests.get(urljoin(self.kibana,'/api/kibana/management/saved_objects/_find?search=cachealot&type=index-pattern')).json()
+		if not search.get('saved_objects',None) is None and len(search.get('saved_objects')) == 0:
+			r = requests.post(urljoin(self.kibana,'/api/saved_objects/_import?overwrite=true'),headers={'kbn-xsrf':'true'}, files={'file':open(os.path.join(os.path.dirname(__file__), 'data/export.ndjson'),'rb')})
+			logger.info('restored objects: {}'.format(r.text))
+			if r.json().get('success') != True:
+				logger.error('error importing kibana data: {}'.format(r.text))
+				time.sleep(10)
+
+	def log_elk(self,url,start,end,response,source="index"):
 		o = urlparse(url)
 		tld = tldextract.extract(url)
-		r = requests.post(urljoin(self.elastic_search,'/cachealot-{}/entries/?pretty'.format(time.strftime('%Y%m%d', time.localtime(start)))),json={
+		requests.post(urljoin(self.elastic_search,'/cachealot-{}/entries/?pretty'.format(time.strftime('%Y%m%d', time.localtime(start)))),json={
 			'@timestamp':time.strftime('%Y-%m-%dT%H:%M:%S%z', time.localtime(start)),
 			'@finished':time.strftime('%Y-%m-%dT%H:%M:%S%z', time.localtime(end)),
 			'@hostname': str(socket.gethostname()),
-			'status':int(r.status_code),
-			'headers': json.loads(str(r.headers).replace("'",'"')),
-			'cookies': r.cookies.get_dict(),
+			'@source': source,
+			'status':int(response.status_code),
+			'headers': json.loads(str(response.headers).replace("'",'"')),
+			'cookies': response.cookies.get_dict(),
 			'url': url,
-			'responseurl': str(r.url),
+			'responseurl': str(response.url),
+			'history':[{
+				'status':resp.status_code, 
+				'url':resp.url, 
+				'headers': json.loads(str(resp.headers).replace("'",'"')),
+				'cookies': resp.cookies.get_dict(),
+			} for resp in response.history] if response.history else [],
 			'scheme': o.scheme,
 			'hostname': o.hostname,
 			'netloc': o.netloc,
@@ -98,25 +128,26 @@ class Cachealot:
 			'query': o.query,
 			'queryparams': parse_qs(o.query),
 			'port': o.port,
-			'size': len(r.content),
+			'size': len(response.content),
 			'time': end-start
 		}, verify=False)
 
-	def request(self, url, timeout):
+	def request(self, url, timeout, source="index"):
 		try:
 			start = time.time()
 			try:
-				r = requests.get(url, timeout=timeout, verify=False, headers={'User-Agent': self.user_agent})
+				response = requests.get(url, timeout=timeout, verify=False, headers={'User-Agent':self.user_agent})
 				end = time.time()
 				if not self.elastic_search is None:
 					#self.log_elk(url,start,end,r)
-					self.export_pool.submit(self.log_elk,url,start,end,r)
-				if r.status_code == 200:
-					logger.info('HTTP[{}] ({}/{:.2f}s) {}'.format(r.status_code,sizeof_fmt(len(r.text)),(end-start),url))
-					if "text/" in r.headers["content-type"]:
-						return r.content
+					self.log_elk(url,start,end,response,source)
+					#self.export_pool.submit(self.log_elk,url,start,end,response,source)
+				if response.status_code == 200:
+					logger.info('HTTP[{}] ({}/{:.2f}s) {}'.format(response.status_code,sizeof_fmt(len(response.content)),(end-start),url))
+					if "text/" in response.headers["content-type"]:
+						return response
 				else:
-					logger.error('HTTP[{}] ({:.2f}s) {}'.format(r.status_code,(end-start),url))
+					logger.error('HTTP[{}] ({:.2f}s) {}'.format(response.status_code,(end-start),url))
 			except Timeout:
 				end = time.time()
 				logger.error('Timeout ({:.2f}s) {}'.format((end-start),url))
@@ -171,11 +202,13 @@ class Cachealot:
 						while len(futures) > 0:
 							for future in as_completed(futures):
 								try:
-									for link in self.extract_urls(future.result()):
-										if not link in links:
-											logger.info('new: {}'.format(link))
-											links.add(link)
-											futures.add(pool.submit(self.request, link, self.timeout))
+									response = future.result()
+									if not response is None:
+										for link in self.extract_urls(response.content):
+											if not link in links:
+												logger.info('new: {}'.format(link))
+												links.add(link)
+												futures.add(pool.submit(self.request, link, self.timeout, response.url))
 								finally:
 									futures.remove(future)
 					end = time.time()

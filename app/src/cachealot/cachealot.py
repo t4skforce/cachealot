@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 import tldextract
 import socket
 import base64
+from xml.dom.minidom import parseString
 import logging
 logging.basicConfig(format='%(asctime)s - %(name)s - [%(levelname)s] %(message)s', level=logging.INFO)
 logging.getLogger("requests").setLevel(logging.WARNING)
@@ -98,13 +99,14 @@ class Cachealot:
 				target = urljoin(self.o.entrypoint, url).split("#", 1)[0]
 				try:
 					o = urlparse(target)
-					target_domain = o.netloc.split(':')[0]
-					target_path = '/'
-					if '/' in o.path: target_path = o.path[:o.path.rindex('/')]
-					target_depth = len(target_path.split('/'))
-					if self.o.samedomain == False or (self.o.samedomain and target_domain == self.o.base_domain):
-						if self.o.levels == -1 or (target_path.startswith(self.o.base_path) and len(target_path[len(self.o.base_path):].split('/')) <= self.o.levels):
-							yield target
+					if o.scheme is None or o.scheme in ['http','https']: 
+						target_domain = o.netloc.split(':')[0]
+						target_path = '/'
+						if '/' in o.path: target_path = o.path[:o.path.rindex('/')]
+						target_depth = len(target_path.split('/'))
+						if self.o.samedomain == False or (self.o.samedomain and target_domain == self.o.base_domain):
+							if self.o.levels == -1 or (target_path.startswith(self.o.base_path) and len(target_path[len(self.o.base_path):].split('/')) <= self.o.levels):
+								yield target
 				except:
 					pass
 
@@ -116,13 +118,23 @@ class Cachealot:
 		if elem.is_('iframe'): return elem.attr('src')
 		if elem.is_('source'): return elem.attr('src')
 
-	def extract_urls(self, content):
+	def extract_urls(self, response):
 		try:
-			if not content is None:
-				q = pq(content)
-				for elem in q(self.o.query).items():
-					for url in self.get_full_url(self.get_url_from_elem(elem)):
-						yield url
+			if not response.content is None:
+				if "text/xml" in response.headers["content-type"]:
+					xml = parseString(response.content)
+					# sitemap.xml
+					urlset = xml.getElementsByTagName('urlset')
+					if len(urlset) > 0:
+						for urlnode in urlset[0].getElementsByTagName('url'):
+							locnode = urlnode.getElementsByTagName('loc')
+							if len(locnode) > 0:
+								yield locnode[0].firstChild.nodeValue
+				elif "text/" in response.headers["content-type"]:
+					q = pq(response.content)
+					for elem in q(self.o.query).items():
+						for url in self.get_full_url(self.get_url_from_elem(elem)):
+							yield url
 		except:
 			logger.exception('extract_urls error')
 
@@ -134,13 +146,14 @@ class Cachealot:
 					links = set()
 					futures = set()
 					with ThreadPoolExecutor(max_workers=self.o.threads) as pool:
+						futures.add(pool.submit(self.request, urljoin(self.o.entrypoint,'/sitemap.xml')))
 						futures.add(pool.submit(self.request, self.o.entrypoint))
 						while len(futures) > 0:
 							for future in as_completed(futures):
 								try:
 									response = future.result()
 									if not response is None:
-										for link in self.extract_urls(response.content):
+										for link in self.extract_urls(response):
 											if not link in links:
 												logger.info('new: {}'.format(link))
 												links.add(link)

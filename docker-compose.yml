@@ -35,6 +35,8 @@ services:
      - CACHEALOT_THREADS=1
      - CACHEALOT_ENTRYPOINT=https://pypy.org
      - CACHEALOT_QUERY=a
+     - CACHEALOT_SITEMAP=/sitemap.xml
+     - CACHEALOT_BLACKLIST=\.exe|\.pdf$$
      - CACHEALOT_HEADERS={"X-Application":"cachealot"}
 
 volumes:

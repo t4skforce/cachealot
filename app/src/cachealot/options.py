@@ -5,6 +5,7 @@ from urllib.parse import urlparse, urljoin
 import requests
 import time
 import logging
+import re
 logging.basicConfig(format='%(asctime)s - %(name)s - [%(levelname)s] %(message)s', level=logging.INFO)
 logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
@@ -16,7 +17,9 @@ class Options:
 		self.threads = 1
 		self.entrypoint = 'https://pypy.org'
 		self.query = 'a'
+		self.sitemap = None
 		self.samedomain = True
+		self.blacklist = None
 		self.levels = -1
 		self.static = False
 		self.connection_timeout = 60
@@ -125,6 +128,25 @@ class Options:
 	def query(self, query):
 		if not query is None:
 			self._query=query
+
+	@property
+	def sitemap(self):
+		return self._sitemap
+
+	@sitemap.setter
+	def sitemap(self, sitemap):
+		self._sitemap=sitemap
+
+	@property
+	def blacklist(self):
+		return self._blacklist
+
+	@blacklist.setter
+	def blacklist(self, pattern):
+		if not pattern is None:
+			self._blacklist=re.compile(pattern, re.IGNORECASE | re.DOTALL)
+		else:
+			self._blacklist=None
 
 	@property
 	def samedomain(self):

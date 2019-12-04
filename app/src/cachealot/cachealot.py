@@ -100,13 +100,14 @@ class Cachealot:
 				try:
 					o = urlparse(target)
 					if o.scheme is None or o.scheme in ['http','https']: 
-						target_domain = o.netloc.split(':')[0]
-						target_path = '/'
-						if '/' in o.path: target_path = o.path[:o.path.rindex('/')]
-						target_depth = len(target_path.split('/'))
-						if self.o.samedomain == False or (self.o.samedomain and target_domain == self.o.base_domain):
-							if self.o.levels == -1 or (target_path.startswith(self.o.base_path) and len(target_path[len(self.o.base_path):].split('/')) <= self.o.levels):
-								yield target
+						if self.o.blacklist is None or self.o.blacklist.search(target) is None:
+							target_domain = o.netloc.split(':')[0]
+							target_path = '/'
+							if '/' in o.path: target_path = o.path[:o.path.rindex('/')]
+							target_depth = len(target_path.split('/'))
+							if self.o.samedomain == False or (self.o.samedomain and target_domain == self.o.base_domain):
+								if self.o.levels == -1 or (target_path.startswith(self.o.base_path) and len(target_path[len(self.o.base_path):].split('/')) <= self.o.levels):
+									yield target
 				except:
 					pass
 
@@ -146,7 +147,8 @@ class Cachealot:
 					links = set()
 					futures = set()
 					with ThreadPoolExecutor(max_workers=self.o.threads) as pool:
-						futures.add(pool.submit(self.request, urljoin(self.o.entrypoint,'/sitemap.xml')))
+						if not self.o.sitemap is None:
+							futures.add(pool.submit(self.request, urljoin(self.o.entrypoint,self.o.sitemap)))
 						futures.add(pool.submit(self.request, self.o.entrypoint))
 						while len(futures) > 0:
 							for future in as_completed(futures):

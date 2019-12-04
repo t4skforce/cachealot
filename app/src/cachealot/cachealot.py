@@ -29,80 +29,16 @@ def sizeof_fmt(num, suffix='B'):
     return "%.1f%s%s" % (num, 'Yi', suffix)
 
 class Cachealot:
-	def __init__(self, interval, threads, entrypoint, query, samedomain, levels, static, connection_timeout, read_timeout, user_agent, elastic_search, kibana):
-		logger.info('Settings: {}'.format({
-			"interval":interval,
-			"threads":threads,
-			"entrypoint":entrypoint,
-			"query":query,
-			"samedomain":samedomain,
-			"levels":levels,
-			"static":static,
-			"connection-timeout":connection_timeout,
-			"read-timeout":read_timeout,
-			"user-agent":user_agent,
-			"elastic-search":elastic_search,
-			"kibana": kibana
-		}))
-		self.interval = interval
-		self.threads = threads
-		self.entrypoint = entrypoint
-		self.query = query
-		if static == True: 
-			self.query = '{},img,link[rel="stylesheet"],script'.format(query)
-		self.samedomain = samedomain
-		self.levels = levels
-		self.timeout = (connection_timeout,read_timeout)
-		o = urlparse(self.entrypoint)
-		self.base_domain = o.netloc.split(':')[0]
-		if '/' in o.path: 
-			self.base_path = o.path[:o.path.rindex('/')+1]
-		else:
-			self.base_path = '/'
-		self.base_depth = len(self.base_path.split('/'))
-		self.user_agent = user_agent
-		self.elastic_search = elastic_search
-		if not self.elastic_search is None:
-			while True:
-				try:
-					if requests.get(self.elastic_search).status_code == 200: 
-						break
-				except: 
-					pass
-				logger.info('waiting for elk to come up')
-				time.sleep(5)
-			self.set_up_elk()
-		self.kibana = kibana
-		if not self.kibana is None:
-			while True:
-				try:
-					r = requests.get(urljoin(self.kibana, '/api/security/v1/me'))
-					if r.status_code == 200 and not "not ready" in r.text:
-						break
-				except: 
-					pass
-				logger.info('waiting for kibana to come up')
-				time.sleep(5)
-			self.set_up_kibana()
-
-	def set_up_elk(self):
-		if requests.get(urljoin(self.elastic_search,'/_ilm/policy/cachealot_cleanup_policy')).json().get('cachealot_cleanup_policy',None) is None:
-			requests.put(urljoin(self.elastic_search,'/_ilm/policy/cachealot_cleanup_policy?pretty'), json={"policy":{"phases":{"hot":{"actions":{}},"delete":{"min_age":"30d","actions":{"delete":{}}}}}},verify=False)
-			requests.put(urljoin(self.elastic_search,'/_template/cachealot_logging_policy_template?pretty'), json={"index_patterns": ["cachealot-*"],"settings":{"index.lifecycle.name":"cachealot_cleanup_policy"}},verify=False)
-
-	def set_up_kibana(self):
-		search = requests.get(urljoin(self.kibana,'/api/kibana/management/saved_objects/_find?search=cachealot&type=index-pattern')).json()
-		if not search.get('saved_objects',None) is None and len(search.get('saved_objects')) == 0:
-			r = requests.post(urljoin(self.kibana,'/api/saved_objects/_import?overwrite=true'),headers={'kbn-xsrf':'true'}, files={'file':open(os.path.join(os.path.dirname(__file__), 'data/export.ndjson'),'rb')})
-			logger.info('restored objects: {}'.format(r.text))
-			if r.json().get('success') != True:
-				logger.error('error importing kibana data: {}'.format(r.text))
-				time.sleep(10)
+	def __init__(self, options):
+		self.o = options
+		logger.info('Settings: {}'.format(str(self.o)))
+		self.o.setup()
+		
 
 	def log_elk(self,url,start,end,response,source="index"):
 		o = urlparse(url)
 		tld = tldextract.extract(url)
-		requests.post(urljoin(self.elastic_search,'/cachealot-{}/entries/?pretty'.format(time.strftime('%Y%m%d', time.localtime(start)))),json={
+		requests.post(urljoin(self.o.elastic_search,'/cachealot-{}/entries/?pretty'.format(time.strftime('%Y%m%d', time.localtime(start)))),json={
 			'@timestamp':time.strftime('%Y-%m-%dT%H:%M:%S%z', time.localtime(start)),
 			'@finished':time.strftime('%Y-%m-%dT%H:%M:%S%z', time.localtime(end)),
 			'@hostname': str(socket.gethostname()),
@@ -132,13 +68,13 @@ class Cachealot:
 			'time': end-start
 		}, verify=False)
 
-	def request(self, url, timeout, source="index"):
+	def request(self, url, source="index"):
 		try:
 			start = time.time()
 			try:
-				response = requests.get(url, timeout=timeout, verify=False, headers={'User-Agent':self.user_agent})
+				response = requests.get(url, timeout=self.o.timeout, verify=False, headers=self.o.headers)
 				end = time.time()
-				if not self.elastic_search is None:
+				if not self.o.elastic_search is None:
 					#self.log_elk(url,start,end,r)
 					self.log_elk(url,start,end,response,source)
 					#self.export_pool.submit(self.log_elk,url,start,end,response,source)
@@ -159,15 +95,15 @@ class Cachealot:
 		if not url is None:
 			url = url.strip()
 			if len(url) > 0:
-				target = urljoin(self.entrypoint, url).split("#", 1)[0]
+				target = urljoin(self.o.entrypoint, url).split("#", 1)[0]
 				try:
 					o = urlparse(target)
 					target_domain = o.netloc.split(':')[0]
 					target_path = '/'
 					if '/' in o.path: target_path = o.path[:o.path.rindex('/')]
 					target_depth = len(target_path.split('/'))
-					if self.samedomain == False or (self.samedomain and target_domain == self.base_domain):
-						if self.levels == -1 or (target_path.startswith(self.base_path) and len(target_path[len(self.base_path):].split('/')) <= self.levels):
+					if self.o.samedomain == False or (self.o.samedomain and target_domain == self.o.base_domain):
+						if self.o.levels == -1 or (target_path.startswith(self.o.base_path) and len(target_path[len(self.o.base_path):].split('/')) <= self.o.levels):
 							yield target
 				except:
 					pass
@@ -184,7 +120,7 @@ class Cachealot:
 		try:
 			if not content is None:
 				q = pq(content)
-				for elem in q(self.query).items():
+				for elem in q(self.o.query).items():
 					for url in self.get_full_url(self.get_url_from_elem(elem)):
 						yield url
 		except:
@@ -197,8 +133,8 @@ class Cachealot:
 					start = time.time()
 					links = set()
 					futures = set()
-					with ThreadPoolExecutor(max_workers=self.threads) as pool:
-						futures.add(pool.submit(self.request, self.entrypoint, self.timeout))
+					with ThreadPoolExecutor(max_workers=self.o.threads) as pool:
+						futures.add(pool.submit(self.request, self.o.entrypoint))
 						while len(futures) > 0:
 							for future in as_completed(futures):
 								try:
@@ -208,15 +144,16 @@ class Cachealot:
 											if not link in links:
 												logger.info('new: {}'.format(link))
 												links.add(link)
-												futures.add(pool.submit(self.request, link, self.timeout, response.url))
+												futures.add(pool.submit(self.request, link, response.url))
 								finally:
 									futures.remove(future)
 					end = time.time()
 					logger.info('finished requesting {} pages in {}'.format(len(links)+1,str(timedelta(seconds=end - start))))
-					logger.info('sleeping for {}'.format(str(timedelta(seconds=self.interval*60))))
-					time.sleep(self.interval*60)
+					logger.info('sleeping for {}'.format(str(timedelta(seconds=self.o.interval*60))))
+					if self.o.interval > -1:
+						time.sleep(self.o.interval*60)
 		except KeyboardInterrupt:
 			pass
 		except:
-			logger.exception('URL={}'.format(self.entrypoint))
+			logger.exception('URL={}'.format(self.o.entrypoint))
 			

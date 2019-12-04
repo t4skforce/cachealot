@@ -3,11 +3,12 @@
 import os
 import sys
 import click
+from .options import Options
 from .cachealot import Cachealot
 
 @click.command()
-@click.option('--interval', prompt='interval', type=click.IntRange(0), default=lambda: os.environ.get('CACHEALOT_INTERVAL', 5), help='Number of minutes to wait between warmup runs')
-@click.option('--threads', prompt='threads', type=click.IntRange(0), default=lambda: os.environ.get('CACHEALOT_THREADS', 2), help='Number of threads to use for warmup')
+@click.option('--interval', prompt='interval', type=click.IntRange(-1), default=lambda: os.environ.get('CACHEALOT_INTERVAL', 5), help='Number of minutes to wait between warmup runs')
+@click.option('--threads', prompt='threads', type=click.IntRange(1), default=lambda: os.environ.get('CACHEALOT_THREADS', 2), help='Number of threads to use for warmup')
 @click.option('--entrypoint', prompt='entrypoint', type=click.STRING, default=lambda: os.environ.get('CACHEALOT_ENTRYPOINT'), help='url we find index page so we can extract the urls to call')
 @click.option('--query', prompt='query', type=click.STRING, default=lambda: os.environ.get('CACHEALOT_QUERY', 'a'), help='pyquery expression to fetch new urls')
 @click.option('--samedomain/--no-samedomain', prompt='samedomain', default=lambda: os.environ.get('CACHEALOT_SAMEDOMAIN', True), required=False, help='Allow other domains to be requested')
@@ -16,11 +17,26 @@ from .cachealot import Cachealot
 @click.option('--connection-timeout', prompt='connection-timeout', type=click.FLOAT, default=lambda: os.environ.get('CACHEALOT_CONNECTION_TIMEOUT', 120.0), help='HTTP connection timeout in seconds')
 @click.option('--read-timeout', prompt='read-timeout', type=click.FLOAT, default=lambda: os.environ.get('CACHEALOT_READ_TIMEOUT', 120.0), help='HTTP read timeout in seconds')
 @click.option('--user-agent', prompt='user-agent', type=click.STRING, default=lambda: os.environ.get('CACHEALOT_USER_AGENT','Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'), help='User-Agent header to use for requests')
+@click.option('--headers', type=click.STRING, default=lambda: os.environ.get('CACHEALOT_HEADERS',None), help='HTTP-Headers to send with the requests')
 @click.option('--elastic-search', type=click.STRING, default=lambda: os.environ.get('CACHEALOT_ELASTIC_SEARCH',None), help='Address of Elastic-Search Server')
 @click.option('--kibana', type=click.STRING, default=lambda: os.environ.get('CACHEALOT_KIBANA',None), help='Address of Kibana Server')
-def entrypoint(interval, threads, entrypoint, query, samedomain, max_levels, static, connection_timeout, read_timeout, user_agent, elastic_search, kibana):
+def entrypoint(interval, threads, entrypoint, query, samedomain, max_levels, static, connection_timeout, read_timeout, user_agent, headers, elastic_search, kibana):
 	try:
-		Cachealot(interval, threads, entrypoint, query, samedomain, max_levels, static, connection_timeout, read_timeout, user_agent, elastic_search, kibana).run()
+		options = Options()
+		options.interval = interval
+		options.threads = threads
+		options.entrypoint = entrypoint
+		options.query = query
+		options.samedomain = samedomain
+		options.max_levels = max_levels
+		options.static = static
+		options.connection_timeout = connection_timeout
+		options.read_timeout = read_timeout
+		options.user_agent = user_agent
+		options.headers = headers
+		options.elastic_search = elastic_search
+		options.kibana = kibana
+		Cachealot(options).run()
 	except KeyboardInterrupt:
 		sys.exit(0)
 

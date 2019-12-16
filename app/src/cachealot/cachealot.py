@@ -9,7 +9,6 @@ warnings.simplefilter('ignore',InsecureRequestWarning)
 from requests.exceptions import Timeout
 from pyquery import PyQuery as pq
 import time
-import json
 from urllib.parse import urlparse, urljoin, parse_qs
 from datetime import datetime, timedelta
 import tldextract
@@ -45,14 +44,14 @@ class Cachealot:
 			'@hostname': str(socket.gethostname()),
 			'@source': source,
 			'status':int(response.status_code),
-			'headers': json.loads(str(response.headers).replace("'",'"')),
+			'headers': dict(response.headers.items()),
 			'cookies': response.cookies.get_dict(),
 			'url': url,
 			'responseurl': str(response.url),
 			'history':[{
 				'status':resp.status_code, 
 				'url':resp.url, 
-				'headers': json.loads(str(resp.headers).replace("'",'"')),
+				'headers': dict(resp.headers.items()),
 				'cookies': resp.cookies.get_dict(),
 			} for resp in response.history] if response.history else [],
 			'scheme': o.scheme,
@@ -73,7 +72,7 @@ class Cachealot:
 		try:
 			start = time.time()
 			try:
-				response = requests.get(url, timeout=self.o.timeout, verify=False, headers=self.o.headers)
+				response = requests.get(url, timeout=self.o.timeout, verify=False, headers=self.o.headers, proxies=self.o.proxies)
 				end = time.time()
 				if not self.o.elastic_search is None:
 					#self.log_elk(url,start,end,r)

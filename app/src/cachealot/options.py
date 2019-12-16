@@ -22,6 +22,8 @@ class Options:
 		self.blacklist = None
 		self.levels = -1
 		self.static = False
+		self.http_proxy = None
+		self.https_proxy = None
 		self.connection_timeout = 60
 		self.read_timeout = 60
 		self.user_agent = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
@@ -177,6 +179,33 @@ class Options:
 	def static(self, static):
 		if not static is None:
 			self._static=(static == True)
+
+	@property
+	def http_proxy(self):
+		return self._http_proxy
+
+	@http_proxy.setter
+	def http_proxy(self, http_proxy):
+		self._http_proxy=http_proxy
+
+	@property
+	def https_proxy(self):
+		return self._https_proxy
+
+	@https_proxy.setter
+	def https_proxy(self, https_proxy):
+		self._https_proxy=https_proxy
+
+	@property
+	def proxies(self):
+		ret = dict()
+		if not self.http_proxy is None:
+			ret['http']=self.http_proxy
+		if not self.https_proxy is None:
+			ret['https']=self.http_proxy
+		if not ret:
+			return None
+		return ret
 
 	@property
 	def connection_timeout(self):

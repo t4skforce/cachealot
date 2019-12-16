@@ -99,7 +99,7 @@ class Cachealot:
 				try:
 					o = urlparse(target)
 					if o.scheme is None or o.scheme in ['http','https']: 
-						if self.o.blacklist is None or self.o.blacklist.search(target) is None:
+						if self.o.blacklist is None or (self.o.blacklist.search(target) is None and self.o.blacklist.search(urljoin(self.o.entrypoint, o.path)) is None):
 							target_domain = o.netloc.split(':')[0]
 							target_path = '/'
 							if '/' in o.path: target_path = o.path[:o.path.rindex('/')]

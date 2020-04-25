@@ -130,6 +130,12 @@ class Cachealot:
 							locnode = urlnode.getElementsByTagName('loc')
 							if len(locnode) > 0:
 								yield locnode[0].firstChild.nodeValue
+					else:
+						#sitemapindex
+						sitemaps = xml.getElementsByTagName('loc')
+						if len(sitemaps) > 0:
+							for sitemapnode in sitemaps:
+								yield sitemapnode.firstChild.nodeValue
 				elif "text/" in response.headers["content-type"]:
 					q = pq(response.content)
 					for elem in q(self.o.query).items():
